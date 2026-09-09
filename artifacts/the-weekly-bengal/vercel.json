@@ -1,5 +1,6 @@
 {
-  "outputDirectory": "dist",
+  "buildCommand": "pnpm --filter @workspace/the-weekly-bengal build",
+  "outputDirectory": "artifacts/the-weekly-bengal/dist",
   "rewrites": [
     {
       "source": "/(.*)",

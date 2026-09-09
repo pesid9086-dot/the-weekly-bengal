@@ -1,24 +1,37 @@
 {
-  "outputDirectory": "dist",
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/api/og",
-      "destination": "/api/og.js"
+      "src": "package.json",
+      "use": "@vercel/static-build"
     },
     {
-      "source": "/article/:id",
+      "src": "api/og.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/og",
+      "dest": "/api/og.js"
+    },
+    {
+      "src": "/article/(?<id>[^/]+)",
       "has": [
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(.*facebookexternalhit.*|.*Facebot.*|.*Twitterbot.*|.*LinkedInBot.*|.*WhatsApp.*)"
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp).*"
         }
       ],
-      "destination": "/api/og?id=:id"
+      "dest": "/api/og.js?id=$id"
     },
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "handle": "filesystem"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }

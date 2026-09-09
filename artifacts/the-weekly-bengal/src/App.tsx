@@ -85,12 +85,18 @@ function writeStore<T>(key: string, value: T) {
   } catch {}
 }
 
-function dateInBengali(date: string) {
-  return new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(date));
+function dateInBengali(date?: string) {
+  try {
+    const d = date ? new Date(date) : new Date();
+    if (isNaN(d.getTime())) return 'আজ';
+    return new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+  } catch {
+    return 'আজ';
+  }
 }
 
 function generateExcerpt(content: string) {
-  const trimmed = content.trim();
+  const trimmed = (content || '').trim();
   return trimmed.length > 100 ? `${trimmed.slice(0, 100).trim()}…` : trimmed;
 }
 
@@ -123,7 +129,7 @@ function App() {
   return (
     <QueryClientProvider client={new QueryClient()}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+        <WouterRouter base={(import.meta.env.BASE_URL || '').replace(/\/$/, '')}>
           <Router />
         </WouterRouter>
         <Toaster />
@@ -147,13 +153,12 @@ function Router() {
     localStorage.setItem('wb_theme', dark ? 'dark' : 'light');
   }, [dark]);
 
-  // ক্লাউড ডেটাবেজের খবর এবং ডেমো খবর একসাথে জোড়া লাগানো
   useEffect(() => {
     const url = import.meta.env.VITE_SUPABASE_URL;
     const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
     if (!url || !key) return;
 
-    fetch(`${url}/rest/v1/news?status=eq.published&order=created_at.desc`, {
+    fetch(`${url}/rest/v1/news?order=created_at.desc`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }
     })
       .then((res) => (res.ok ? (res.json() as Promise<News[]>) : Promise.reject()))
@@ -332,22 +337,23 @@ function Header({ dark, language, setDark, setLanguage, session, logout, t }: { 
 function Meta({ article, t }: { article: News; t: typeof translations.bn }) {
   return (
     <div className="wb-meta">
-      <span>{article.author_name}</span>
+      <span>{article?.author_name || 'প্রতিবেদক'}</span>
       <span className="wb-meta-dot" />
-      <span>{dateInBengali(article.created_at)}</span>
+      <span>{dateInBengali(article?.created_at)}</span>
       <span className="wb-meta-dot" />
-      <span>{article.reading_time || 5} {t.read}</span>
+      <span>{article?.reading_time || 5} {t.read}</span>
     </div>
   );
 }
 
 function StoryCard({ article, small = false, featured = false, bookmarked, toggleBookmark }: { article: News; small?: boolean; featured?: boolean; bookmarked: boolean; toggleBookmark: (id: string) => void }) {
+  if (!article) return null;
   return (
     <article className={`wb-story-card ${small ? 'small' : ''} ${featured ? 'featured' : ''} wb-reveal`} data-testid={`card-story-${article.id}`}>
-      <Link href={`/article/${article.id}`} data-testid={`link-story-${article.id}`}><img src={article.image_url} alt={article.title} loading="lazy" /></Link>
-      <div className="wb-kicker">{article.category}</div>
-      <h3 className="wb-serif"><Link href={`/article/${article.id}`} className="wb-link" data-testid={`link-title-${article.id}`}>{article.title}</Link></h3>
-      <p>{article.excerpt}</p>
+      <Link href={`/article/${article.id}`} data-testid={`link-story-${article.id}`}><img src={article.image_url || 'https://images.pexels.com/photos/2403851/pexels-photo-2403851.jpeg?auto=compress&cs=tinysrgb&w=1200'} alt={article.title || ''} loading="lazy" /></Link>
+      <div className="wb-kicker">{article.category || 'সংবাদ'}</div>
+      <h3 className="wb-serif"><Link href={`/article/${article.id}`} className="wb-link" data-testid={`link-title-${article.id}`}>{article.title || 'শিরোনামহীন'}</Link></h3>
+      <p>{article.excerpt || ''}</p>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '.7rem' }}>
         <Meta article={article} t={translations.bn} />
         <button className="wb-icon-button" onClick={() => toggleBookmark(article.id)} aria-label={bookmarked ? 'বুকমার্ক সরান' : 'বুকমার্ক করুন'} data-testid={`button-bookmark-${article.id}`}>{bookmarked ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}</button>
@@ -365,16 +371,18 @@ function Home({ news, bookmarks, toggleBookmark, t }: { news: News[]; bookmarks:
   return (
     <>
       <main className="wb-container">
-        <section className="wb-hero wb-reveal">
-          <div>
-            <div className="wb-kicker">সপ্তাহের প্রধান প্রতিবেদন</div>
-            <h1 className="wb-serif wb-hero-title"><Link href={`/article/${lead.id}`} className="wb-link" data-testid="link-lead-story">{lead.title}</Link></h1>
-            <p className="wb-excerpt">{lead.excerpt}</p>
-            <div style={{ margin: '1.3rem 0' }}><Meta article={lead} t={t} /></div>
-            <Link href={`/article/${lead.id}`} className="wb-button wb-button-primary" data-testid="button-read-lead">{t.more}<ChevronRight size={14} /></Link>
-          </div>
-          <Link href={`/article/${lead.id}`} data-testid="link-lead-image"><img className="wb-hero-image" src={lead.image_url} alt={lead.title} /></Link>
-        </section>
+        {lead && (
+          <section className="wb-hero wb-reveal">
+            <div>
+              <div className="wb-kicker">সপ্তাহের প্রধান প্রতিবেদন</div>
+              <h1 className="wb-serif wb-hero-title"><Link href={`/article/${lead.id}`} className="wb-link" data-testid="link-lead-story">{lead.title}</Link></h1>
+              <p className="wb-excerpt">{lead.excerpt}</p>
+              <div style={{ margin: '1.3rem 0' }}><Meta article={lead} t={t} /></div>
+              <Link href={`/article/${lead.id}`} className="wb-button wb-button-primary" data-testid="button-read-lead">{t.more}<ChevronRight size={14} /></Link>
+            </div>
+            <Link href={`/article/${lead.id}`} data-testid="link-lead-image"><img className="wb-hero-image" src={lead.image_url} alt={lead.title} /></Link>
+          </section>
+        )}
         <section>
           <div className="wb-section-head">
             <h2 className="wb-serif">{t.picks}</h2>
@@ -411,8 +419,47 @@ function Home({ news, bookmarks, toggleBookmark, t }: { news: News[]; bookmarks:
 
 function Article({ news, bookmarks, toggleBookmark, notify, t }: { news: News[]; bookmarks: string[]; toggleBookmark: (id: string) => void; notify: (message: string) => void; t: typeof translations.bn }) {
   const params = useParams<{ id: string }>();
-  const article = news.find((item) => item.id === params.id) || SEED_NEWS.find((item) => item.id === params.id);
+  const [article, setArticle] = useState<News | null>(() => {
+    return news.find((item) => String(item.id) === String(params.id)) || SEED_NEWS.find((item) => String(item.id) === String(params.id)) || null;
+  });
+  const [loading, setLoading] = useState(!article);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const found = news.find((item) => String(item.id) === String(params.id)) || SEED_NEWS.find((item) => String(item.id) === String(params.id));
+    if (found) {
+      setArticle(found);
+      setLoading(false);
+      return;
+    }
+
+    const url = import.meta.env.VITE_SUPABASE_URL;
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key || !params.id) {
+      setLoading(false);
+      return;
+    }
+
+    fetch(`${url}/rest/v1/news?id=eq.${encodeURIComponent(params.id)}&select=*`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` }
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setArticle(data[0]);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setLoading(false));
+  }, [params.id, news]);
+
+  if (loading) {
+    return (
+      <main className="wb-container" style={{ padding: '6rem 0', textAlign: 'center' }}>
+        <p className="wb-serif" style={{ fontSize: '1.2rem', color: 'hsl(var(--muted-foreground))' }}>প্রতিবেদনটি লোড হচ্ছে...</p>
+      </main>
+    );
+  }
 
   if (!article) return <NotFound t={t} />;
 
@@ -428,22 +475,26 @@ function Article({ news, bookmarks, toggleBookmark, notify, t }: { news: News[];
     else copyLink();
   };
 
+  const rawText = article.content || article.excerpt || article.title || '';
+
   return (
     <main className="wb-container">
       <article className="wb-article wb-reveal">
-        <div className="wb-kicker">{article.category}</div>
+        <div className="wb-kicker">{article.category || 'জাতীয়'}</div>
         <h1 className="wb-serif" data-testid={`text-article-title-${article.id}`}>{article.title}</h1>
-        <p className="wb-article-deck">{article.excerpt}</p>
+        {article.excerpt && <p className="wb-article-deck">{article.excerpt}</p>}
         <div style={{ marginTop: '1.5rem' }}><Meta article={article} t={t} /></div>
         <div className="wb-action-row">
           <button className="wb-button wb-button-quiet" onClick={() => toggleBookmark(article.id)} data-testid="button-article-bookmark">{bookmarks.includes(article.id) ? <BookmarkCheck size={15} /> : <Bookmark size={15} />} {bookmarks.includes(article.id) ? t.saved : t.save}</button>
           <button className="wb-button wb-button-quiet" onClick={share} data-testid="button-article-share"><Share2 size={15} /> {t.share}</button>
           <button className="wb-button wb-button-quiet" onClick={copyLink} data-testid="button-article-copy"><Copy size={15} /> {copied ? 'কপি হয়েছে' : t.copy}</button>
         </div>
-        <img className="wb-article-cover" src={article.image_url} alt={article.title} data-testid={`img-article-cover-${article.id}`} />
+        {article.image_url && (
+          <img className="wb-article-cover" src={article.image_url} alt={article.title || ''} data-testid={`img-article-cover-${article.id}`} />
+        )}
         <div className="wb-article-body">
-          {(article.content || article.excerpt).split('\n\n').map((paragraph, index) =>
-            index === 1 ? <blockquote className="wb-pullquote" key={paragraph}>“{paragraph}”</blockquote> : <p key={paragraph} data-testid={`text-article-paragraph-${index}`}>{paragraph}</p>
+          {rawText.split('\n\n').filter(Boolean).map((paragraph, index) =>
+            index === 1 ? <blockquote className="wb-pullquote" key={`${paragraph.slice(0, 15)}-${index}`}>“{paragraph}”</blockquote> : <p key={`${paragraph.slice(0, 15)}-${index}`} data-testid={`text-article-paragraph-${index}`}>{paragraph}</p>
           )}
         </div>
         {article.photographer && <p style={{ textAlign: 'center', fontSize: '.7rem', color: 'hsl(var(--muted-foreground))' }}>ছবি: {article.photographer}</p>}
@@ -457,7 +508,7 @@ function SearchPage({ news, bookmarks, toggleBookmark, t }: { news: News[]; book
   const [category, setCategory] = useState<Category | 'সব বিভাগ'>('সব বিভাগ');
   const pool = news.length ? news : SEED_NEWS;
   const results = useMemo(
-    () => pool.filter((article) => article.status === 'published' && (category === 'সব বিভাগ' || article.category === category) && `${article.title} ${article.excerpt} ${article.category}`.toLowerCase().includes(query.toLowerCase())),
+    () => pool.filter((article) => article.status === 'published' && (category === 'সব বিভাগ' || article.category === category) && `${article.title || ''} ${article.excerpt || ''} ${article.category || ''}`.toLowerCase().includes(query.toLowerCase())),
     [category, pool, query]
   );
 
@@ -704,12 +755,12 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
     }
     setEditorOpen(true);
     setEditing(article);
-    setTitle(article.title);
-    setCategory(article.category);
-    setAuthorName(article.author_name);
-    setContent(article.content);
-    setImageUrl(article.image_url);
-    setStatus(article.status);
+    setTitle(article.title || '');
+    setCategory(article.category || 'জাতীয়');
+    setAuthorName(article.author_name || 'সম্পাদকমণ্ডলী');
+    setContent(article.content || '');
+    setImageUrl(article.image_url || '');
+    setStatus(article.status || 'published');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -905,11 +956,11 @@ function Reporter({ news, setNews, session, notify, syncNews }: { news: News[]; 
 
   const edit = (article: News) => {
     setEditing(article);
-    setTitle(article.title);
-    setCategory(article.category);
-    setAuthorName(article.author_name);
+    setTitle(article.title || '');
+    setCategory(article.category || 'জাতীয়');
+    setAuthorName(article.author_name || '');
     setContent(article.content || '');
-    setImageUrl(article.image_url);
+    setImageUrl(article.image_url || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

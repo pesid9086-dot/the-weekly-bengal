@@ -147,7 +147,7 @@ function Router() {
     localStorage.setItem('wb_theme', dark ? 'dark' : 'light');
   }, [dark]);
 
-  // মাউন্টের সময় একবারই শুধু ক্লাউড থেকে নিউজ ফেচ করবে (কোনো ব্লিংকিং হবে না)
+  // ক্লাউড ডেটাবেজের খবর এবং ডেমো খবর একসাথে জোড়া লাগানো
   useEffect(() => {
     const url = import.meta.env.VITE_SUPABASE_URL;
     const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -159,7 +159,9 @@ function Router() {
       .then((res) => (res.ok ? (res.json() as Promise<News[]>) : Promise.reject()))
       .then((remote) => {
         if (Array.isArray(remote) && remote.length > 0) {
-          setNews(remote);
+          const remoteIds = new Set(remote.map((item) => item.id));
+          const remainingSeeds = SEED_NEWS.filter((item) => !remoteIds.has(item.id));
+          setNews([...remote, ...remainingSeeds]);
         }
       })
       .catch(() => undefined);

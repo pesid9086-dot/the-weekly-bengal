@@ -184,9 +184,16 @@
 .wb-tab { padding: .75rem; background: transparent; border: 0; color: hsl(var(--muted-foreground)); cursor: pointer; border-bottom: 2px solid transparent; }
 .wb-tab.active { color: hsl(var(--accent)); border-bottom-color: hsl(var(--accent)); }
 .wb-form-stack { display: grid; gap: 1rem; }
+.wb-reporter-layout { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.7rem; }
+.wb-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .wb-field { display: grid; gap: .35rem; font-size: .75rem; font-weight: 600; }
 .wb-field input, .wb-field textarea, .wb-field select { width: 100%; border: 1px solid hsl(var(--border)); background: hsl(var(--background)); color: hsl(var(--foreground)); padding: .75rem .8rem; border-radius: 2px; outline: 0; }
 .wb-field textarea { min-height: 135px; resize: vertical; line-height: 1.7; }
+.wb-image-attachment { display: grid; gap: .65rem; }
+.wb-image-preview { min-height: 150px; display: grid; place-items: center; overflow: hidden; border: 1px dashed hsl(var(--border)); background: hsl(var(--muted) / .35); color: hsl(var(--muted-foreground)); font-size: .72rem; font-weight: 400; }
+.wb-image-preview img { display: block; width: 100%; max-height: 280px; object-fit: cover; }
+.wb-submit-full { width: 100%; justify-content: center; }
+.wb-auth-reset { display: block; width: fit-content; margin: 1rem auto 0; border: 0; background: transparent; cursor: pointer; font-size: .75rem; }
 .wb-dashboard { padding: 2.4rem 0 4rem; }
 .wb-dashboard-head { display: flex; justify-content: space-between; align-items: end; gap: 1rem; padding-bottom: 1.5rem; border-bottom: 3px double hsl(var(--foreground)); }
 .wb-dashboard h1 { margin: .4rem 0; font-size: clamp(2.2rem, 5vw, 4rem); letter-spacing: -.05em; }
@@ -242,4 +249,9 @@
   .wb-stat-grid { grid-template-columns: 1fr; }
   .wb-article { padding-top: 2rem; }
   .wb-article-body { font-size: 1rem; }
+  .wb-form-grid { grid-template-columns: 1fr; }
+  .wb-reporter-layout { width: 100%; gap: 1rem; }
+  .wb-reporter-layout > form, .wb-reporter-layout > aside { width: 100%; min-width: 0; }
+  .wb-field input, .wb-field textarea, .wb-field select { min-height: 48px; padding: .8rem .85rem; }
+  .wb-field textarea { min-height: 180px; }
 }

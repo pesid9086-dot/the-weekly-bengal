@@ -75,6 +75,17 @@ function writeStore<T>(key: string, value: T) { localStorage.setItem(key, JSON.s
 function dateInBengali(date: string) { return new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(date)); }
 function englishDate(date: string) { return new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date)); }
 function initials(name: string) { return name.split(' ').map((part) => part[0]).join('').slice(0, 2); }
+function generateExcerpt(content: string) {
+  const trimmed = content.trim();
+  return trimmed.length > 100 ? `${trimmed.slice(0, 100).trim()}…` : trimmed;
+}
+function readImageFile(file: File, onRead: (value: string) => void) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === 'string') onRead(reader.result);
+  };
+  reader.readAsDataURL(file);
+}
 
 const translations = {
   bn: { search: 'খুঁজুন', latest: 'সর্বশেষ', picks: 'সম্পাদকের পছন্দ', more: 'আরও পড়ুন', home: 'প্রচ্ছদ', signIn: 'প্রবেশ করুন', signOut: 'বেরিয়ে যান', save: 'সংরক্ষণ', saved: 'সংরক্ষিত', share: 'শেয়ার', copy: 'লিংক কপি', admin: 'অ্যাডমিন', workspace: 'রিপোর্টার ডেস্ক', read: 'মিনিট পড়ুন' },
@@ -240,24 +251,43 @@ function Login({ users, setUsers, login, t }: { users: User[]; setUsers: (next: 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [resetMode, setResetMode] = useState(false);
+  const [resetPassword, setResetPassword] = useState('');
   const [error, setError] = useState('');
   const [, navigate] = useLocation();
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError('');
     const normalizedEmail = email.trim().toLowerCase();
+    if (resetMode) {
+      if (!normalizedEmail || resetPassword.length < 6) {
+        setError('ইমেইল দিন এবং অন্তত ৬ অক্ষরের নতুন পাসওয়ার্ড লিখুন।');
+        return;
+      }
+      const existing = users.find((user) => user.email.toLowerCase() === normalizedEmail);
+      if (!existing && normalizedEmail !== ADMIN_EMAIL) {
+        setError('এই ইমেইলের কোনো অ্যাকাউন্ট পাওয়া যায়নি।');
+        return;
+      }
+      const updated: User = existing
+        ? { ...existing, password: resetPassword, active: true, role: normalizedEmail === ADMIN_EMAIL ? 'admin' : existing.role }
+        : { id: `u-${Date.now()}`, name: 'নাফিউল আলী', email: ADMIN_EMAIL, password: resetPassword, role: 'admin', active: true };
+      setUsers((current) => existing ? current.map((user) => user.id === updated.id ? updated : user) : [...current, updated]);
+      login({ userId: updated.id, name: updated.name, email: updated.email, role: updated.role });
+      navigate(updated.role === 'admin' ? '/admin' : '/reporter');
+      return;
+    }
     if (tab === 'signup') {
       if (!name.trim() || !normalizedEmail || password.length < 6) {
         setError('নাম, সঠিক ইমেইল ও অন্তত ৬ অক্ষরের পাসওয়ার্ড দিন।');
         return;
       }
-      if (users.some((user) => user.email.toLowerCase() === normalizedEmail)) {
-        setError('এই ইমেইল দিয়ে ইতিমধ্যে অ্যাকাউন্ট আছে।');
-        return;
-      }
       const role: UserRole = normalizedEmail === ADMIN_EMAIL ? 'admin' : 'reporter';
-      const user: User = { id: `u-${Date.now()}`, name: name.trim(), email: normalizedEmail, password, role, active: true };
-      setUsers((current) => [...current, user]);
+      const existing = users.find((user) => user.email.toLowerCase() === normalizedEmail);
+      const user: User = existing
+        ? { ...existing, name: name.trim(), email: normalizedEmail, password, role, active: true }
+        : { id: `u-${Date.now()}`, name: name.trim(), email: normalizedEmail, password, role, active: true };
+      setUsers((current) => existing ? current.map((item) => item.id === user.id ? user : item) : [...current, user]);
       login({ userId: user.id, name: user.name, email: user.email, role: user.role });
       navigate(role === 'admin' ? '/admin' : '/reporter');
       return;
@@ -274,7 +304,7 @@ function Login({ users, setUsers, login, t }: { users: User[]; setUsers: (next: 
     login({ userId: user.id, name: user.name, email: user.email, role: user.role });
     navigate(user.role === 'admin' ? '/admin' : '/reporter');
   };
-  return <main className="wb-auth-wrap"><section className="wb-auth-card wb-reveal"><div className="wb-kicker">THE WEEKLY BENGAL / DESK</div><h1 className="wb-serif" style={{ fontSize: '2.35rem', lineHeight: 1.1, margin: '.5rem 0' }}>{tab === 'signin' ? 'আপনার ডেস্কে প্রবেশ করুন' : 'রিপোর্টার হিসেবে যোগ দিন'}</h1><p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '.8rem', lineHeight: 1.8 }}>সংবাদ পড়া সবার জন্য। নিউজরুমে অবদান রাখতে একটি অ্যাকাউন্ট খুলুন।</p><div className="wb-tabs"><button className={`wb-tab ${tab === 'signin' ? 'active' : ''}`} onClick={() => setTab('signin')} data-testid="tab-signin">প্রবেশ</button><button className={`wb-tab ${tab === 'signup' ? 'active' : ''}`} onClick={() => setTab('signup')} data-testid="tab-signup">নিবন্ধন</button></div><form className="wb-form-stack" onSubmit={submit}>{tab === 'signup' && <label className="wb-field">আপনার নাম<input value={name} onChange={(event) => setName(event.target.value)} placeholder="নাম লিখুন" autoComplete="name" data-testid="input-name" /></label>}<label className="wb-field">ইমেইল<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" autoComplete="email" data-testid="input-email" /></label><label className="wb-field">পাসওয়ার্ড<input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="••••••••" autoComplete={tab === 'signup' ? 'new-password' : 'current-password'} data-testid="input-password" /></label>{error && <p style={{ color: 'hsl(var(--destructive))', fontSize: '.75rem', margin: 0 }} role="alert" data-testid="status-login-error">{error}</p>}<button className="wb-button wb-button-primary" type="submit" data-testid="button-submit-auth">{tab === 'signin' ? 'প্রবেশ করুন' : 'অ্যাকাউন্ট খুলুন'} <ChevronRight size={15} /></button></form></section></main>;
+  return <main className="wb-auth-wrap"><section className="wb-auth-card wb-reveal"><div className="wb-kicker">THE WEEKLY BENGAL / DESK</div><h1 className="wb-serif" style={{ fontSize: '2.35rem', lineHeight: 1.1, margin: '.5rem 0' }}>{resetMode ? 'নতুন পাসওয়ার্ড সেট করুন' : tab === 'signin' ? 'আপনার ডেস্কে প্রবেশ করুন' : 'রিপোর্টার হিসেবে যোগ দিন'}</h1><p style={{ color: 'hsl(var(--muted-foreground))', fontSize: '.8rem', lineHeight: 1.8 }}>সংবাদ পড়া সবার জন্য। নিউজরুমে অবদান রাখতে একটি অ্যাকাউন্ট খুলুন।</p>{!resetMode && <div className="wb-tabs"><button className={`wb-tab ${tab === 'signin' ? 'active' : ''}`} onClick={() => setTab('signin')} data-testid="tab-signin">প্রবেশ</button><button className={`wb-tab ${tab === 'signup' ? 'active' : ''}`} onClick={() => setTab('signup')} data-testid="tab-signup">নিবন্ধন</button></div>}<form className="wb-form-stack" onSubmit={submit}>{!resetMode && tab === 'signup' && <label className="wb-field">আপনার নাম<input value={name} onChange={(event) => setName(event.target.value)} placeholder="নাম লিখুন" autoComplete="name" data-testid="input-name" /></label>}<label className="wb-field">ইমেইল<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" autoComplete="email" data-testid="input-email" /></label><label className="wb-field">{resetMode ? 'নতুন পাসওয়ার্ড' : 'পাসওয়ার্ড'}<input type="password" value={resetMode ? resetPassword : password} onChange={(event) => resetMode ? setResetPassword(event.target.value) : setPassword(event.target.value)} placeholder="••••••••" autoComplete={resetMode || tab === 'signup' ? 'new-password' : 'current-password'} data-testid={resetMode ? 'input-reset-password' : 'input-password'} /></label>{error && <p style={{ color: 'hsl(var(--destructive))', fontSize: '.75rem', margin: 0 }} role="alert" data-testid="status-login-error">{error}</p>}<button className="wb-button wb-button-primary" type="submit" data-testid="button-submit-auth">{resetMode ? 'পাসওয়ার্ড আপডেট করুন' : tab === 'signin' ? 'প্রবেশ করুন' : 'অ্যাকাউন্ট খুলুন'} <ChevronRight size={15} /></button></form><button type="button" className="wb-link wb-auth-reset" onClick={() => { setResetMode((current) => !current); setError(''); }} data-testid="button-password-reset">{resetMode ? 'প্রবেশে ফিরে যান' : 'পাসওয়ার্ড রিসেট'}</button></section></main>;
 }
 
 function Protected({ session, role, t, children }: { session: Session | null; role: UserRole; t: typeof translations.bn; children: ReactNode }) {
@@ -289,7 +319,7 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
   const [editing, setEditing] = useState<News | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<Category>('জাতীয়');
-  const [excerpt, setExcerpt] = useState('');
+  const [authorName, setAuthorName] = useState('সম্পাদকমণ্ডলী');
   const [content, setContent] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [status, setStatus] = useState<NewsStatus>('published');
@@ -301,7 +331,7 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
     setEditing(null);
     setTitle('');
     setCategory('জাতীয়');
-    setExcerpt('');
+    setAuthorName('সম্পাদকমণ্ডলী');
     setContent('');
     setImageUrl('');
     setStatus('published');
@@ -312,7 +342,7 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
       setEditing(null);
       setTitle('');
       setCategory('জাতীয়');
-      setExcerpt('');
+      setAuthorName('সম্পাদকমণ্ডলী');
       setContent('');
       setImageUrl('');
       setStatus('published');
@@ -322,7 +352,7 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
     setEditing(article);
     setTitle(article.title);
     setCategory(article.category);
-    setExcerpt(article.excerpt);
+    setAuthorName(article.author_name);
     setContent(article.content);
     setImageUrl(article.image_url);
     setStatus(article.status);
@@ -330,16 +360,16 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
   };
   const saveArticle = (event: FormEvent) => {
     event.preventDefault();
-    if (!title.trim() || !excerpt.trim() || !content.trim()) return;
+    if (!title.trim() || !authorName.trim() || !content.trim()) return;
     const article: News = {
       id: editing?.id || `wb-${Date.now()}`,
       title: title.trim(),
       category,
-      excerpt: excerpt.trim(),
+      excerpt: generateExcerpt(content),
       content: content.trim(),
       image_url: imageUrl.trim() || 'https://images.pexels.com/photos/518245/pexels-photo-518245.jpeg?auto=compress&cs=tinysrgb&w=1200',
       status,
-      author_name: editing?.author_name || 'সম্পাদকমণ্ডলী',
+      author_name: authorName.trim(),
       author_id: editing?.author_id || 'u-admin',
       created_at: editing?.created_at || new Date().toISOString(),
       reading_time: Math.max(3, Math.ceil(content.trim().split(/\s+/).length / 180)),
@@ -381,7 +411,7 @@ function Admin({ news, setNews, users, setUsers, notify, syncNews }: { news: New
     <div className="wb-tabs" style={{ maxWidth: 460 }}><button className={`wb-tab ${tab === 'articles' ? 'active' : ''}`} onClick={() => setTab('articles')} data-testid="tab-moderation">খবর ব্যবস্থাপনা</button><button className={`wb-tab ${tab === 'users' ? 'active' : ''}`} onClick={() => setTab('users')} data-testid="tab-users">রিপোর্টার ও অ্যাক্সেস</button></div>
     {tab === 'articles' ? <>
       <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '1rem 0' }}><button className="wb-button wb-button-primary" onClick={() => openEditor()} data-testid="button-new-article"><Plus size={15} /> নতুন খবর</button></div>
-      {editorOpen ? <form className="wb-form-stack" onSubmit={saveArticle} style={{ border: '1px solid hsl(var(--border))', padding: '1.2rem', marginBottom: '1.5rem' }}><div className="wb-section-head"><h2 className="wb-serif">{editing ? 'খবর সম্পাদনা' : 'নতুন খবর'}</h2><button type="button" className="wb-icon-button" onClick={resetEditor} aria-label="বন্ধ করুন"><X size={16} /></button></div><label className="wb-field">শিরোনাম<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label><label className="wb-field">বিভাগ<select value={category} onChange={(event) => setCategory(event.target.value as Category)}>{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="wb-field">ছবির লিংক<input value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://..." /></label><label className="wb-field">সারাংশ<textarea value={excerpt} onChange={(event) => setExcerpt(event.target.value)} required /></label><label className="wb-field">বিস্তারিত লেখা<textarea style={{ minHeight: 220 }} value={content} onChange={(event) => setContent(event.target.value)} required /></label><label className="wb-field">স্ট্যাটাস<select value={status} onChange={(event) => setStatus(event.target.value as NewsStatus)}><option value="published">প্রকাশিত</option><option value="pending">অপেক্ষমাণ</option></select></label><button className="wb-button wb-button-primary" type="submit"><Check size={14} /> সংরক্ষণ করুন</button></form> : null}
+      {editorOpen ? <form className="wb-form-stack" onSubmit={saveArticle} style={{ border: '1px solid hsl(var(--border))', padding: '1.2rem', marginBottom: '1.5rem' }}><div className="wb-section-head"><h2 className="wb-serif">{editing ? 'খবর সম্পাদনা' : 'নতুন খবর'}</h2><button type="button" className="wb-icon-button" onClick={resetEditor} aria-label="বন্ধ করুন"><X size={16} /></button></div><label className="wb-field">শিরোনাম<input value={title} onChange={(event) => setTitle(event.target.value)} required /></label><label className="wb-field">বিভাগ<select value={category} onChange={(event) => setCategory(event.target.value as Category)}>{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="wb-field">প্রতিবেদকের নাম / বাইলাইন<input value={authorName} onChange={(event) => setAuthorName(event.target.value)} required /></label><label className="wb-field">খবরের ছবি / কাভার ইমেজ<div className="wb-image-attachment"><input value={imageUrl.startsWith('data:') ? '' : imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://..." /><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) readImageFile(file, setImageUrl); }} /><div className="wb-image-preview">{imageUrl ? <img src={imageUrl} alt="কাভার প্রিভিউ" /> : <span>ছবির প্রিভিউ এখানে দেখা যাবে</span>}</div></div></label><label className="wb-field">বিস্তারিত খবর<textarea style={{ minHeight: 220 }} value={content} onChange={(event) => setContent(event.target.value)} required /></label><label className="wb-field">স্ট্যাটাস<select value={status} onChange={(event) => setStatus(event.target.value as NewsStatus)}><option value="published">প্রকাশিত</option><option value="pending">অপেক্ষমাণ</option></select></label><button className="wb-button wb-button-primary wb-submit-full" type="submit"><Check size={14} /> সংরক্ষণ করুন</button></form> : null}
       <ArticleTable articles={news} moderate={moderate} onEdit={openEditor} onDelete={deleteArticle} />
     </> : <UserTable users={users} toggleUser={toggleUser} deleteUser={deleteUser} addUser={addUser} />}
   </main>;
@@ -404,20 +434,21 @@ function Reporter({ news, setNews, session, notify, syncNews }: { news: News[]; 
   const [editing, setEditing] = useState<News | null>(null);
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<Category>('জাতীয়');
-  const [excerpt, setExcerpt] = useState('');
+  const [authorName, setAuthorName] = useState(session?.name || '');
   const [content, setContent] = useState('');
-  const startNew = () => { setEditing(null); setTitle(''); setCategory('জাতীয়'); setExcerpt(''); setContent(''); };
-  const edit = (article: News) => { setEditing(article); setTitle(article.title); setCategory(article.category); setExcerpt(article.excerpt); setContent(article.content || ''); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const [imageUrl, setImageUrl] = useState('');
+  const startNew = () => { setEditing(null); setTitle(''); setCategory('জাতীয়'); setAuthorName(session?.name || ''); setContent(''); setImageUrl(''); };
+  const edit = (article: News) => { setEditing(article); setTitle(article.title); setCategory(article.category); setAuthorName(article.author_name); setContent(article.content || ''); setImageUrl(article.image_url); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const save = (event: FormEvent) => {
     event.preventDefault();
-    if (!title.trim() || !excerpt.trim() || !content.trim()) return;
-    const article: News = editing ? { ...editing, title: title.trim(), category, excerpt: excerpt.trim(), content: content.trim(), reading_time: Math.max(3, Math.ceil(content.split(/\s+/).length / 180)) } : { id: `wb-${Date.now()}`, title: title.trim(), category, excerpt: excerpt.trim(), content: content.trim(), image_url: 'https://images.pexels.com/photos/518245/pexels-photo-518245.jpeg?auto=compress&cs=tinysrgb&w=1200', status: 'pending', author_name: session?.name || 'রিপোর্টার', author_id: session?.userId || '', created_at: new Date().toISOString(), reading_time: Math.max(3, Math.ceil(content.split(/\s+/).length / 180)) };
+    if (!title.trim() || !authorName.trim() || !content.trim()) return;
+    const article: News = editing ? { ...editing, title: title.trim(), category, excerpt: generateExcerpt(content), content: content.trim(), image_url: imageUrl || editing.image_url, author_name: authorName.trim(), reading_time: Math.max(3, Math.ceil(content.split(/\s+/).length / 180)) } : { id: `wb-${Date.now()}`, title: title.trim(), category, excerpt: generateExcerpt(content), content: content.trim(), image_url: imageUrl || 'https://images.pexels.com/photos/518245/pexels-photo-518245.jpeg?auto=compress&cs=tinysrgb&w=1200', status: 'pending', author_name: authorName.trim(), author_id: session?.userId || '', created_at: new Date().toISOString(), reading_time: Math.max(3, Math.ceil(content.split(/\s+/).length / 180)) };
     if (editing) setNews((current) => current.map((item) => item.id === article.id ? article : item)); else setNews((current) => [article, ...current]);
     void syncNews(article, 'upsert');
     notify(editing ? 'খসড়া আপডেট হয়েছে।' : 'প্রতিবেদনটি সম্পাদনা ডেস্কে পাঠানো হয়েছে.');
     startNew();
   };
-  return <main className="wb-container wb-dashboard"><div className="wb-dashboard-head"><div><div className="wb-kicker">রিপোর্টার ডেস্ক / WORKSPACE</div><h1 className="wb-serif">আপনার খাতা</h1><p style={{ color: 'hsl(var(--muted-foreground))', margin: 0 }}>ভাবনা থেকে প্রতিবেদন—সম্পাদনা ডেস্কে পাঠানোর আগে একবার পড়ে নিন।</p></div><button className="wb-button wb-button-primary" onClick={startNew} data-testid="button-new-submission"><PenLine size={15} /> নতুন প্রতিবেদন</button></div><section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(280px, .6fr)', gap: '2rem', marginTop: '1.7rem' }}><form className="wb-form-stack" onSubmit={save}><h2 className="wb-serif" style={{ margin: 0 }}>{editing ? 'খসড়া সম্পাদনা' : 'নতুন প্রতিবেদন'}</h2><label className="wb-field">শিরোনাম<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="একটি স্পষ্ট, সংক্ষিপ্ত শিরোনাম" data-testid="input-submission-title" /></label><label className="wb-field">বিভাগ<select value={category} onChange={(event) => setCategory(event.target.value as Category)} data-testid="select-submission-category">{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="wb-field">সারাংশ<textarea value={excerpt} onChange={(event) => setExcerpt(event.target.value)} placeholder="প্রথম কয়েক লাইনে পাঠককে জানান গল্পটি কেন জরুরি" data-testid="input-submission-excerpt" /></label><label className="wb-field">বিস্তারিত লেখা<textarea style={{ minHeight: 260 }} value={content} onChange={(event) => setContent(event.target.value)} placeholder="অনুচ্ছেদ আলাদা করতে খালি লাইন ব্যবহার করুন" data-testid="input-submission-content" /></label><button className="wb-button wb-button-primary" type="submit" data-testid="button-submit-submission">{editing ? 'খসড়া সংরক্ষণ' : 'সম্পাদনা ডেস্কে পাঠান'} <ChevronRight size={14} /></button></form><aside><div className="wb-section-head"><h2 className="wb-serif">আপনার প্রতিবেদন</h2><span>{own.length}টি</span></div>{own.length ? own.map((article) => <div key={article.id} style={{ padding: '1rem 0', borderBottom: '1px solid hsl(var(--border))' }}><span className="wb-status">{article.status === 'pending' ? 'পর্যালোচনায়' : 'প্রকাশিত'}</span><h3 className="wb-serif" style={{ margin: '.45rem 0', fontSize: '1.1rem' }}>{article.title}</h3><button className="wb-button" onClick={() => edit(article)} data-testid={`button-edit-submission-${article.id}`}><FileEdit size={14} /> সম্পাদনা</button></div>) : <div className="wb-empty" style={{ marginTop: '1rem' }}><PenLine size={25} /><p>আপনার প্রথম প্রতিবেদনটি লিখুন।</p></div>}</aside></section></main>;
+  return <main className="wb-container wb-dashboard"><div className="wb-dashboard-head"><div><div className="wb-kicker">রিপোর্টার ডেস্ক / WORKSPACE</div><h1 className="wb-serif">আপনার খাতা</h1><p style={{ color: 'hsl(var(--muted-foreground))', margin: 0 }}>ভাবনা থেকে প্রতিবেদন—সম্পাদনা ডেস্কে পাঠানোর আগে একবার পড়ে নিন।</p></div><button className="wb-button wb-button-primary" onClick={startNew} data-testid="button-new-submission"><PenLine size={15} /> নতুন প্রতিবেদন</button></div><section className="wb-reporter-layout"><form className="wb-form-stack" onSubmit={save}><h2 className="wb-serif" style={{ margin: 0 }}>{editing ? 'খবর সম্পাদনা' : 'নতুন প্রতিবেদন'}</h2><label className="wb-field">শিরোনাম<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="একটি স্পষ্ট, সংক্ষিপ্ত শিরোনাম" data-testid="input-submission-title" required /></label><label className="wb-field">বিভাগ<select value={category} onChange={(event) => setCategory(event.target.value as Category)} data-testid="select-submission-category">{CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="wb-field">প্রতিবেদকের নাম / বাইলাইন<input value={authorName} onChange={(event) => setAuthorName(event.target.value)} placeholder="নামের বানান লিখুন" data-testid="input-submission-author" required /></label><label className="wb-field">খবরের ছবি / কাভার ইমেজ<div className="wb-image-attachment"><input value={imageUrl.startsWith('data:') ? '' : imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://..." data-testid="input-submission-image-url" /><input type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (file) readImageFile(file, setImageUrl); }} data-testid="input-submission-image-file" /><div className="wb-image-preview">{imageUrl ? <img src={imageUrl} alt="কাভার প্রিভিউ" /> : <span>ছবির প্রিভিউ এখানে দেখা যাবে</span>}</div></div></label><label className="wb-field">বিস্তারিত খবর<textarea style={{ minHeight: 260 }} value={content} onChange={(event) => setContent(event.target.value)} placeholder="অনুচ্ছেদ আলাদা করতে খালি লাইন ব্যবহার করুন" data-testid="input-submission-content" required /></label><button className="wb-button wb-button-primary wb-submit-full" type="submit" data-testid="button-submit-submission">{editing ? 'খসড়া সংরক্ষণ' : 'সম্পাদনা ডেস্কে পাঠান'} <ChevronRight size={14} /></button></form><aside><div className="wb-section-head"><h2 className="wb-serif">আপনার প্রতিবেদন</h2><span>{own.length}টি</span></div>{own.length ? own.map((article) => <div key={article.id} style={{ padding: '1rem 0', borderBottom: '1px solid hsl(var(--border))' }}><span className="wb-status">{article.status === 'pending' ? 'পর্যালোচনায়' : 'প্রকাশিত'}</span><h3 className="wb-serif" style={{ margin: '.45rem 0', fontSize: '1.1rem' }}>{article.title}</h3><button className="wb-button" onClick={() => edit(article)} data-testid={`button-edit-submission-${article.id}`}><FileEdit size={14} /> সম্পাদনা</button></div>) : <div className="wb-empty" style={{ marginTop: '1rem' }}><PenLine size={25} /><p>আপনার প্রথম প্রতিবেদনটি লিখুন।</p></div>}</aside></section></main>;
 }
 
 function Footer() {

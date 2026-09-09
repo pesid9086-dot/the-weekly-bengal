@@ -80,19 +80,13 @@ function readStore<T>(key: string, fallback: T): T {
 }
 
 function writeStore<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
 }
 
 function dateInBengali(date: string) {
   return new Intl.DateTimeFormat('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(date));
-}
-
-function englishDate(date: string) {
-  return new Intl.DateTimeFormat('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(date));
-}
-
-function initials(name: string) {
-  return name.split(' ').map((part) => part[0]).join('').slice(0, 2);
 }
 
 function generateExcerpt(content: string) {
@@ -153,6 +147,7 @@ function Router() {
     localStorage.setItem('wb_theme', dark ? 'dark' : 'light');
   }, [dark]);
 
+  // মাউন্টের সময় একবারই শুধু ক্লাউড থেকে নিউজ ফেচ করবে (কোনো ব্লিংকিং হবে না)
   useEffect(() => {
     const url = import.meta.env.VITE_SUPABASE_URL;
     const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -161,18 +156,14 @@ function Router() {
     fetch(`${url}/rest/v1/news?status=eq.published&order=created_at.desc`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }
     })
-      .then((response) => (response.ok ? (response.json() as Promise<News[]>) : Promise.reject(new Error('remote unavailable'))))
+      .then((res) => (res.ok ? (res.json() as Promise<News[]>) : Promise.reject()))
       .then((remote) => {
         if (Array.isArray(remote) && remote.length > 0) {
           setNews(remote);
-        } else if (!news || news.length === 0) {
-          setNews(SEED_NEWS);
         }
       })
-      .catch(() => {
-        if (!news || news.length === 0) setNews(SEED_NEWS);
-      });
-  }, [news, setNews]);
+      .catch(() => undefined);
+  }, [setNews]);
 
   const notify = useCallback((message: string) => {
     setToast(message);
@@ -233,25 +224,25 @@ function Router() {
         },
         body: payload ? JSON.stringify(payload) : undefined,
       });
-    } catch {
-      // Local storage remains backup
-    }
+    } catch {}
   }, []);
+
+  const safeNews = news && news.length > 0 ? news : SEED_NEWS;
 
   return (
     <div className="wb-shell wb-grain">
       <Header dark={dark} language={language} setDark={setDark} setLanguage={setLanguage} session={session} logout={logout} t={t} />
       <Switch>
-        <Route path="/" component={() => <Home news={news.length ? news : SEED_NEWS} bookmarks={bookmarks} toggleBookmark={toggleBookmark} t={t} />} />
-        <Route path="/article/:id" component={() => <Article news={news.length ? news : SEED_NEWS} bookmarks={bookmarks} toggleBookmark={toggleBookmark} notify={notify} t={t} />} />
-        <Route path="/search" component={() => <SearchPage news={news.length ? news : SEED_NEWS} bookmarks={bookmarks} toggleBookmark={toggleBookmark} t={t} />} />
-        <Route path="/category/:category" component={() => <CategoryPage news={news.length ? news : SEED_NEWS} bookmarks={bookmarks} toggleBookmark={toggleBookmark} t={t} />} />
+        <Route path="/" component={() => <Home news={safeNews} bookmarks={bookmarks} toggleBookmark={toggleBookmark} t={t} />} />
+        <Route path="/article/:id" component={() => <Article news={safeNews} bookmarks={bookmarks} toggleBookmark={toggleBookmark} notify={notify} t={t} />} />
+        <Route path="/search" component={() => <SearchPage news={safeNews} bookmarks={bookmarks} toggleBookmark={toggleBookmark} t={t} />} />
+        <Route path="/category/:category" component={() => <CategoryPage news={safeNews} bookmarks={bookmarks} toggleBookmark={toggleBookmark} t={t} />} />
         <Route path="/login" component={() => <Login users={users} setUsers={setUsers} login={login} t={t} />} />
         <Route
           path="/admin"
           component={() => (
             <Protected session={session} role="admin" t={t}>
-              <Admin news={news} setNews={setNews} users={users} setUsers={setUsers} notify={notify} syncNews={syncNews} />
+              <Admin news={safeNews} setNews={setNews} users={users} setUsers={setUsers} notify={notify} syncNews={syncNews} />
             </Protected>
           )}
         />
@@ -259,7 +250,7 @@ function Router() {
           path="/reporter"
           component={() => (
             <Protected session={session} role="reporter" t={t}>
-              <Reporter news={news} setNews={setNews} session={session} notify={notify} syncNews={syncNews} />
+              <Reporter news={safeNews} setNews={setNews} session={session} notify={notify} syncNews={syncNews} />
             </Protected>
           )}
         />
@@ -365,8 +356,8 @@ function StoryCard({ article, small = false, featured = false, bookmarked, toggl
 
 function Home({ news, bookmarks, toggleBookmark, t }: { news: News[]; bookmarks: string[]; toggleBookmark: (id: string) => void; t: typeof translations.bn }) {
   const published = news.filter((article) => article.status === 'published');
-  const safePublished = published.length ? published : SEED_NEWS.filter(a => a.status === 'published');
-  const lead = safePublished[0];
+  const safePublished = published.length ? published : news;
+  const lead = safePublished[0] || SEED_NEWS[0];
   const picks = safePublished.slice(1, 4);
 
   return (
@@ -557,7 +548,7 @@ function Login({ users, setUsers, login, t }: { users: User[]; setUsers: (next: 
         setUsers((current) => [...current, user]);
         login({ userId: user.id, name: user.name, email: user.email, role: user.role });
         navigate(role === 'admin' ? '/admin' : '/reporter');
-      } catch (err) {
+      } catch {
         setError('নিবন্ধন ব্যর্থ হয়েছে। ইন্টারনেট সংযোগ চেক করুন।');
       } finally {
         setLoading(false);
@@ -606,7 +597,7 @@ function Login({ users, setUsers, login, t }: { users: User[]; setUsers: (next: 
 
       login({ userId: matchedUser.id, name: matchedUser.name, email: matchedUser.email, role: matchedUser.role });
       navigate(matchedUser.role === 'admin' ? '/admin' : '/reporter');
-    } catch (err) {
+    } catch {
       setError('লগইন প্রক্রিয়ায় সমস্যা হয়েছে।');
     } finally {
       setLoading(false);

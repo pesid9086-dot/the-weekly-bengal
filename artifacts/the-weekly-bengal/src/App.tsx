@@ -444,3 +444,5 @@ function Footer() {
 function NotFound({ t }: { t: typeof translations.bn }) {
   return <main className="wb-container"><div className="wb-empty" style={{ margin: '6rem 0' }}><Newspaper size={38} /><div className="wb-kicker">৪০৪ / NOT FOUND</div><h1 className="wb-serif">এই পাতাটি ছাপা হয়নি</h1><p>ঠিকানাটি বদলে গেছে, অথবা গল্পটি এখনও সম্পাদকীয় ডেস্কে।</p><Link href="/" className="wb-button wb-button-primary" data-testid="button-not-found-home">{t.home}<ChevronRight size={14} /></Link></div></main>;
 }
+
+export default App;

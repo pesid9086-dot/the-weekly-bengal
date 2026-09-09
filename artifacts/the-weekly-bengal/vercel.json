@@ -1,7 +1,17 @@
 {
-  "buildCommand": "pnpm --filter @workspace/the-weekly-bengal build",
   "outputDirectory": "dist",
   "rewrites": [
+    {
+      "source": "/article/:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp).*"
+        }
+      ],
+      "destination": "/api/og?id=:id"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

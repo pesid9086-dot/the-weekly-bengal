@@ -7,7 +7,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|Twitterbot|LinkedInBot|WhatsApp).*"
+          "value": "(.*facebookexternalhit.*|.*Facebot.*|.*Twitterbot.*|.*LinkedInBot.*|.*WhatsApp.*)"
         }
       ],
       "destination": "/api/og?id=:id"

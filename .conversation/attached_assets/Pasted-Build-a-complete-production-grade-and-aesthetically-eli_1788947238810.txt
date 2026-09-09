@@ -1,0 +1,123 @@
+Build a complete, production-grade, and aesthetically elite Bengali News Portal web application named "The Weekly Bengal" using React, TypeScript, Tailwind CSS, Lucide React icons, and Wouter for routing.
+
+================================================================================
+1. ZERO-BREAKAGE ARCHITECTURAL RULES (CRITICAL FOR VERCEL & REPLIT)
+================================================================================
+- NO EXTERNAL SUPABASE SDK: Strictly DO NOT install or import `@supabase/supabase-js`. This prevents Rollup bundling, node-builtins, and package resolution errors.
+- DIRECT REST API ONLY: All database operations must use standard browser `fetch()` calling Supabase REST endpoints using `import.meta.env.VITE_SUPABASE_URL` and `import.meta.env.VITE_SUPABASE_ANON_KEY`.
+- REFRESH 404 REWRITE FIX: Provide a repository root `vercel.json` file with:
+  {
+    "rewrites": [
+      { "source": "/(.*)", "destination": "/index.html" }
+    ]
+  }
+- ONLY ONE SUPABASE TABLE: The entire application requires only ONE table named `news` in public schema:
+  Columns:
+  * `id` (bigint or uuid, primary key)
+  * `title` (text, not null)
+  * `content` (text, not null)
+  * `category` (text, not null)
+  * `image_url` (text)
+  * `status` (text: 'published' | 'pending')
+  * `author_name` (text)
+  * `author_id` (text)
+  * `created_at` (timestamp with time zone)
+- Fallback & Offline Resilience: If Supabase connection fails or returns empty, the app must fall back seamlessly to an in-memory / localStorage dataset so the site never looks blank.
+
+================================================================================
+2. MANDATORY 10 CATEGORIES & SEED DATA
+================================================================================
+The application must strictly feature these 10 exact categories across all navbars, mobile menus, search filters, and article forms:
+1. জাতীয় (National)
+2. আন্তর্জাতিক (International)
+3. রাজনীতি (Politics)
+4. অর্থনীতি (Business / Economy)
+5. খেলাধুলা (Sports)
+6. ই-স্পোর্টস ও গেমিং (Esports & Gaming)
+7. প্রযুক্তি (Technology)
+8. বিনোদন (Entertainment)
+9. সম্পাদকীয় ও মতামত (Editorial & Opinion)
+10. ফিচার ও জীবনযাপন (Features & Lifestyle)
+
+Seed Dataset: Pre-populate at least 2 realistic, well-written published news stories per category (total 20+ stories) complete with headline, excerpt, full body paragraphs, and high-resolution Unsplash/Pexels photography links so the portal opens fully alive, vibrant, and comprehensive on first launch.
+
+================================================================================
+3. AUTHENTICATION & ACCESS CONTROL (IN-APP ENGINE)
+================================================================================
+- Route: `/login`
+- Features two toggleable tabs: "প্রবেশ (Sign In)" and "নিবন্ধন (Sign Up)".
+- Registration (Sign Up):
+  * Inputs: Name, Email, Password.
+  * Stored in `localStorage` under `wb_users`.
+  * If the registering email is `nafiualif379@gmail.com`, automatically assign role: `'admin'`.
+  * Any other email gets assigned role: `'reporter'`.
+- Login (Sign In):
+  * Validates the submitted email and the actual entered password against stored credentials.
+  * If credentials match and role is `'admin'`, store session in `localStorage` (`wb_session`) and route directly to `/admin`.
+  * If credentials match and role is `'reporter'`, verify if active (`active !== false`). If suspended, block login with: "আপনার অ্যাকাউন্টটি সাময়িকভাবে স্থগিত করা হয়েছে।" Otherwise, route to `/reporter`.
+  * If credentials do not match, show error toast: "ভুল ইমেইল বা পাসওয়ার্ড।"
+- Header Integration: Show user name, role badge, and a functional "লগআউট" button that clears session and redirects to `/`.
+
+================================================================================
+4. EDITORIAL UI/UX & THE WEEKLY BENGAL BRAND IDENTITY
+================================================================================
+- Typography:
+  * Brand Masthead: "The Weekly Bengal" rendered in an authoritative editorial serif (Playfair Display / Merriweather).
+  * Headlines: High-contrast, elegant Bengali fonts (Anek Bangla / Hind Siliguri).
+  * Body: Highly readable sans-serif with comfortable line-height (1.8) and margins.
+- Luxury Heritage Palette:
+  * Background: Soft newsprint ivory (`#FAF8F5`) in light mode; deep obsidian slate (`#0B0F12`) in dark mode.
+  * Primary Accent: Deep Forest Emerald (`#0F382C`).
+  * Secondary Accent: Warm Terracotta / Crimson (`#C2410C`).
+  * Borders: Subtle editorial hairline dividers (`#E5E0D8` in light mode, `#1E262C` in dark mode).
+- Top Utility Bar: Live Bengali date, ticking digital clock, language toggle (বাং / EN), and Dark/Light mode toggle.
+- Header & Mobile Layout:
+  * Sleek masthead layout that NEVER overflows or clips text on mobile screens.
+  * Mobile slide-out drawer menu containing links to all 10 categories.
+  * Horizontally scrollable category pill ribbon below the masthead.
+- Breaking News Ticker: Live ribbon bar with pulsating "এই মুহূর্তে" badge.
+- Homepage Architecture:
+  * Hero Lead Story layout: Large cover photo, bold typography, metadata, and reading time.
+  * Secondary editor's picks column.
+  * Dedicated showcase blocks for all 10 categories displaying two curated cards each with smooth hover effects (`group-hover:scale-105 transition duration-300`).
+- Article View (`/article/:id`):
+  * Full-width editorial cover image with photographer credits.
+  * Reading time estimator, author badge, publication date.
+  * Formatted paragraph blocks with pull-quotes.
+  * Action buttons: Bookmark toggle, Social share, and "লিঙ্ক কপি" with toast confirmation.
+- Search Page (`/search`):
+  * Live keyword search input.
+  * Horizontal filter chips for "সব" and all 10 specific categories.
+- Footer:
+  * Multi-column magazine footer with "The Weekly Bengal" branding, editorial mission, category links, copyright notice, and direct link to "রিপোর্টার / সম্পাদক প্রবেশ".
+
+================================================================================
+5. SUPER ADMIN CONTROL PANEL (`/admin`)
+================================================================================
+- Access Guard: Strictly restricted to sessions where `email === 'nafiualif379@gmail.com'` and `role === 'admin'`. Unauthorized users redirect to `/login`.
+- Responsive Layout: Uses a clean card-based list layout for mobile screens instead of wide, overflowing tables.
+- Dual-Tab Interface:
+  Tab 1: "খবর ব্যবস্থাপনা" (Articles):
+    * Displays all articles with category, status badge ('published' vs 'pending'), and author.
+    * "+ নতুন খবর" button opening a full modal: Title, Category (dropdown with all 10 categories), Image URL / preview, detailed Content, and Status ('published' | 'pending'). Saves directly to Supabase `news`.
+    * One-click "অনুমোদন (✓)" button for pending reporter submissions to switch status to 'published'.
+    * "এডিট" modal to modify existing news items.
+    * "মুছুন" button with confirmation alert to remove news items permanently.
+  Tab 2: "রিপোর্টার ও এক্সেস" (Team & Access):
+    * Lists all registered reporters from `localStorage`.
+    * Toggle button to deactivate/activate reporter access (`active: true/false`).
+    * Delete button to remove a reporter from the system entirely.
+    * Form to manually add a reporter with Name, Email, and temporary Password.
+
+================================================================================
+6. REPORTER WORKSPACE (`/reporter`)
+================================================================================
+- Access Guard: Restricted to active reporter sessions.
+- Desk Overview: Lists all stories submitted by the logged-in reporter with approval status badges.
+- Story Submission:
+  * Form featuring: Title, Category (dropdown with 10 categories), Image URL, and Content.
+  * Automatically sets status to `'pending'` and records author info.
+  * Saves to Supabase `news` table for Admin review.
+- Editing functionality for reporters to update their own pending drafts.
+
+Ensure all components are completely written without placeholders, fully typed with TypeScript, wrapped in ErrorBoundary, and production-ready to run seamlessly.

@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "The Weekly Bengal"
+description = "A production-ready Bengali news portal with a rich editorial homepage, searchable categories, article reading experience, local authentication, admin moderation, reporter submissions, dark mode, and resilient offline seed data."
+version = "1.0.0"
+id = "artifacts/the-weekly-bengal"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22591
+
+[services.development]
+run = "pnpm --filter @workspace/the-weekly-bengal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/the-weekly-bengal", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/the-weekly-bengal/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22591"
+BASE_PATH = "/"
